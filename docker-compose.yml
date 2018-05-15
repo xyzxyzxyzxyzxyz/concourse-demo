@@ -1,0 +1,98 @@
+version: '3'
+
+services:
+  concourse-db:
+    image: postgres:9.6
+    environment:
+      POSTGRES_DB: concourse
+      POSTGRES_USER: concourse
+      POSTGRES_PASSWORD: changeme
+      PGDATA: /database
+
+  concourse-web:
+    image: concourse/concourse
+    links: [concourse-db]
+    command: web
+    depends_on: [concourse-db]
+    ports: ["30001:8080"]
+    volumes: ["./demo-data/concourse/keys/web:/concourse-keys"]
+    restart: unless-stopped # required so that it retries until concourse-db comes up
+    environment:
+      CONCOURSE_BASIC_AUTH_USERNAME: concourse
+      CONCOURSE_BASIC_AUTH_PASSWORD: changeme
+      CONCOURSE_EXTERNAL_URL: http://localhost:30001
+      CONCOURSE_POSTGRES_HOST: concourse-db
+      CONCOURSE_POSTGRES_USER: concourse
+      CONCOURSE_POSTGRES_PASSWORD: changeme
+      CONCOURSE_POSTGRES_DATABASE: concourse
+
+  concourse-worker:
+    image: concourse/concourse
+    privileged: true
+    links: [concourse-web, gitlab, artifactory, registry]
+    depends_on: [concourse-web, gitlab, artifactory, registry]
+    command: worker
+    volumes: ["./demo-data/concourse/keys/worker:/concourse-keys"]
+    environment:
+      CONCOURSE_TSA_HOST: concourse-web
+#      CONCOURSE_TSA_PORT: 8080
+
+  artifactory:
+    image: docker.bintray.io/jfrog/artifactory-oss:5.11.0
+    container_name: artifactory
+    ports:
+     - 30002:8081
+    volumes:
+     - ./demo-data/artifactory:/var/opt/jfrog/artifactory
+    restart: always
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 32000
+        hard: 40000
+
+  gitlab:
+    image: 'gitlab/gitlab-ce:latest'
+    restart: always
+    hostname: 'gitlab.example.com'
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'http://localhost:30003'
+        gitlab_rails['gitlab_shell_ssh_port'] = 2224
+    ports:
+      - '30003:30003'
+      - '2224:22'
+    volumes:
+      - './demo-data/gitlab/config:/etc/gitlab'
+      - './demo-data/gitlab/logs:/var/log/gitlab'
+      - './demo-data/gitlab/data:/var/opt/gitlab'
+
+  registry:
+    restart: always
+    image: registry:2
+    ports:
+      - 30004:5000
+    volumes:
+      - ./demo-data/registry/data:/var/lib/registry
+      - ./demo-data/registry/certs:/certs
+      - ./demo-data/registry/auth:/auth
+
+  concourse-cli:
+    image: dolphm/concourse-fly:latest
+    depends_on: [concourse-web]
+    links: [concourse-web]
+    environment:
+      CONCOURSE_BASIC_AUTH_USERNAME: concourse
+      CONCOURSE_BASIC_AUTH_PASSWORD: changeme
+      CONCOURSE_HOST: concourse-web
+      CONCOURSE_PORT: 8080
+      CONCOURSE_TEAM: main
+    entrypoint: "/demo-scripts/setup-concourse-cli.sh"
+    volumes:
+      - ./demo-scripts:/demo-scripts
+      - ./demo-sources:/demo-sources
+      - ./demo-pipeline:/demo-pipeline
+
+
+#fly -t concourse-main execute -c build.yml  --input=source-input=..
+

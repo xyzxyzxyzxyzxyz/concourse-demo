@@ -1,0 +1,56 @@
+---
+jobs:
+- name: build-jar
+  plan:
+  - get: app-source
+    trigger: true
+  - task: build-source
+    file: app-source/concourse/build.yml
+    input_mapping:
+      source-input: app-source 
+    output_mapping:
+      build-output: build-output
+  - put: app-jar
+    params:
+      file: build-output/*.jar
+- name: build-docker-image
+  plan:
+  - get: app-jar
+    trigger: true
+  - get: app-source
+  - put: app-docker-image
+    params:
+      build: ./
+      dockerfile: app-source/docker/Dockerfile
+      build_args:
+        JAR_FILE: app-jar/*.jar
+      tag_as_latest: true
+
+resources:
+- name: app-source
+  type: git
+  check_every: 10s
+  source:
+    uri: ((GIT_URL))/((GIT_REPO))
+    branch: ((GIT_REPO_BRANCH))
+- name: app-jar
+  type: artifactory
+  source:
+    endpoint: ((ARTIFACTORY_URL))/artifactory
+    repository: ((ARTIFACTORY_REPOSITORY))
+    regex: "((ARTIFACT_NAME))-(?<version>.*).jar"
+    username: ((ARTIFACTORY_USERNAME))
+    password: ((ARTIFACTORY_PASSWORD))
+- name: app-docker-image
+  type: docker-image
+  source:
+    repository: ((DOCKER_REGISTRY))/((IMAGE_NAME))
+    insecure_registries:
+    - ((DOCKER_REGISTRY))
+    tag: latest
+
+resource_types:
+- name: artifactory
+  type: docker-image
+  source:
+    repository: pivotalservices/artifactory-resource

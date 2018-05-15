@@ -1,0 +1,13 @@
+ARTIFACT_NAME: concourse-demo-app
+
+GIT_URL: http://gitlab:30003
+GIT_REPO: root/concourse-demo-app.git
+GIT_REPO_BRANCH: master
+
+ARTIFACTORY_URL: http://artifactory:8081
+ARTIFACTORY_REPOSITORY: /example-repo-local
+ARTIFACTORY_USERNAME: admin
+ARTIFACTORY_PASSWORD: password
+
+DOCKER_REGISTRY: registry:5000
+IMAGE_NAME: concourse-demo-app
