@@ -1,0 +1,3 @@
+# Ignore the demo-data directory
+# Applications runtime data will be hold here
+/demo-data/
